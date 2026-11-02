@@ -97,7 +97,8 @@
   const id = new URLSearchParams(location.search).get('c');
   const ref = id && /^[\w-]{10,40}$/.test(id) ? doc(db, 'cobros', id) : null;
   let cobro;
-  try { cobro = ref && (await getDoc(ref)).data(); } catch { fallar('Sin conexión', 'Revisa tu internet y vuelve a escanear el código.'); }
+  try { cobro = ref && (await getDoc(ref)).data(); }
+  catch (e) { e.code === 'permission-denied' ? fallar('Billetera no habilitada', 'Faltan las reglas de "cobros" en Firestore.') : fallar('Sin conexión', 'Revisa tu internet y vuelve a escanear el código.'); }
   if (!ref || (!cobro && $('#error').hidden)) fallar('Código no válido', 'Este código de pago no existe. Genera uno nuevo en la tienda.');
   else if (cobro?.estado === 'pagado') fallar('Ya está pagado', 'Este cobro ya se pagó antes. No se volvió a cobrar.');
   else if (cobro?.estado === 'cancelado') fallar('Cobro cancelado', 'Este cobro se canceló. Genera uno nuevo en la tienda.');
