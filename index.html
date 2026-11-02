@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billetera QR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap">
+<style>
+  :root { --fondo: #f3f1fa; --marca: #4b1f8f; --marca-2: #6d3bd1; --texto: #1d1530; --texto-2: #625a75; --ok: #12925a; --error: #c0362c; --tarjeta: #fff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--fondo); color: var(--texto); min-height: 100vh; display: flex; justify-content: center; }
+  .app { width: 100%; max-width: 420px; min-height: 100vh; display: flex; flex-direction: column; }
+  header { background: linear-gradient(135deg, var(--marca), var(--marca-2)); color: #fff; padding: 20px 16px 56px; }
+  header .top { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 18px; }
+  header .sim { font-size: 11px; font-weight: 600; background: rgba(255,255,255,.18); padding: 4px 8px; border-radius: 99px; }
+  header .saldo { margin-top: 18px; font-size: 13px; opacity: .85; }
+  header .saldo b { display: block; font-size: 26px; opacity: 1; margin-top: 2px; }
+  main { flex: 1; padding: 0 16px 24px; margin-top: -36px; }
+  .card { background: var(--tarjeta); border-radius: 18px; padding: 20px; box-shadow: 0 6px 24px rgba(40, 20, 80, .12); display: flex; flex-direction: column; gap: 14px; }
+  .comercio { display: flex; align-items: center; gap: 12px; }
+  .avatar { width: 46px; height: 46px; border-radius: 50%; background: #ece6fb; color: var(--marca); display: grid; place-items: center; font-weight: 800; }
+  .comercio small { color: var(--texto-2); display: block; }
+  .monto { text-align: center; font-size: 40px; font-weight: 800; margin: 6px 0; }
+  .fila { display: flex; justify-content: space-between; font-size: 14px; border-top: 1px solid #eee; padding-top: 10px; }
+  .fila span:first-child { color: var(--texto-2); }
+  button { font: inherit; font-weight: 700; border: 0; border-radius: 14px; padding: 15px; font-size: 16px; cursor: pointer; width: 100%; }
+  .primario { background: var(--marca); color: #fff; }
+  .primario:disabled { opacity: .6; cursor: wait; }
+  .secundario { background: transparent; color: var(--marca); }
+  .centro { text-align: center; align-items: center; }
+  .icono { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; font-size: 38px; color: #fff; background: var(--ok); }
+  .icono.mal { background: var(--error); }
+  h1 { font-size: 22px; margin: 0; }
+  p { margin: 0; color: var(--texto-2); line-height: 1.45; }
+  .aviso { font-size: 12px; text-align: center; color: var(--texto-2); margin-top: 16px; }
+  .spinner { width: 38px; height: 38px; border: 4px solid #e2dbf5; border-top-color: var(--marca); border-radius: 50%; animation: g 0.8s linear infinite; }
+  @keyframes g { to { transform: rotate(360deg); } }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="top"><span>Billetera QR</span><span class="sim">SIMULACIÓN</span></div>
+    <div class="saldo">Saldo disponible<b id="saldo">$ 250,00</b></div>
+  </header>
+  <main>
+    <section class="card centro" id="cargando"><div class="spinner" aria-hidden="true"></div><p>Leyendo el cobro…</p></section>
+
+    <section class="card" id="cobrar" hidden aria-labelledby="t-pagar">
+      <h1 id="t-pagar">Vas a pagar a</h1>
+      <div class="comercio"><div class="avatar" aria-hidden="true" id="inicial">C</div><div><b id="comercio">Capa3D</b><small>Comercio verificado</small></div></div>
+      <div class="monto" id="monto">$ 0,00</div>
+      <div class="fila"><span>Desde</span><span>Cuenta de ahorros ••••4821</span></div>
+      <div class="fila"><span>Costo de la transacción</span><span>$ 0,00</span></div>
+      <button class="primario" id="pagar">Pagar</button>
+      <button class="secundario" id="cancelar">Cancelar</button>
+    </section>
+
+    <section class="card centro" id="listo" hidden role="status">
+      <div class="icono" aria-hidden="true">✓</div>
+      <h1>¡Pago exitoso!</h1>
+      <div class="monto" id="monto-ok"></div>
+      <p>Pagaste a <b id="comercio-ok"></b>.<br>Comprobante <b id="comp"></b><br><span id="fecha"></span></p>
+      <p>Ya puedes volver a la tienda: tu compra continuará sola.</p>
+    </section>
+
+    <section class="card centro" id="error" hidden role="alert">
+      <div class="icono mal" aria-hidden="true">!</div>
+      <h1 id="error-t">No se pudo pagar</h1>
+      <p id="error-p"></p>
+    </section>
+
+    <p class="aviso">Billetera de demostración del prototipo Capa3D. No se mueve dinero real.</p>
+  </main>
+</div>
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+  import { getFirestore, doc, getDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  // Mismo proyecto que la tienda (valores públicos; la seguridad la dan las reglas de Firestore)
+  const db = getFirestore(initializeApp({
+    apiKey: 'AIzaSyCLo76ghwKFKFKmVeo6pqcCSfwqOYI6txg',
+    authDomain: 'capa-3d.firebaseapp.com',
+    projectId: 'capa-3d',
+    storageBucket: 'capa-3d.firebasestorage.app',
+    messagingSenderId: '187594114508',
+    appId: '1:187594114508:web:c96f08d59f98c4c0b50969',
+  }));
+  const $ = s => document.querySelector(s);
+  const dinero = n => '$ ' + n.toFixed(2).replace('.', ',');
+  const pantalla = id => ['cargando', 'cobrar', 'listo', 'error'].forEach(s => $('#' + s).hidden = s !== id);
+  const fallar = (t, p) => { $('#error-t').textContent = t; $('#error-p').textContent = p; pantalla('error'); };
+  const SALDO = 250;
+
+  const id = new URLSearchParams(location.search).get('c');
+  const ref = id && /^[\w-]{10,40}$/.test(id) ? doc(db, 'cobros', id) : null;
+  let cobro;
+  try { cobro = ref && (await getDoc(ref)).data(); } catch { fallar('Sin conexión', 'Revisa tu internet y vuelve a escanear el código.'); }
+  if (!ref || (!cobro && $('#error').hidden)) fallar('Código no válido', 'Este código de pago no existe. Genera uno nuevo en la tienda.');
+  else if (cobro?.estado === 'pagado') fallar('Ya está pagado', 'Este cobro ya se pagó antes. No se volvió a cobrar.');
+  else if (cobro?.estado === 'cancelado') fallar('Cobro cancelado', 'Este cobro se canceló. Genera uno nuevo en la tienda.');
+  else if (cobro) {
+    $('#comercio').textContent = cobro.comercio; $('#inicial').textContent = cobro.comercio[0];
+    $('#monto').textContent = dinero(cobro.monto);
+    pantalla('cobrar');
+    if (cobro.monto > SALDO) { $('#pagar').disabled = true; $('#pagar').textContent = 'Saldo insuficiente'; }
+  }
+
+  $('#pagar').onclick = async () => {
+    $('#pagar').disabled = true; $('#pagar').textContent = 'Procesando…';
+    const comprobante = String(Math.floor(1e8 + Math.random() * 9e8));
+    try {
+      await updateDoc(ref, { estado: 'pagado', comprobante, pagadoEn: serverTimestamp() });
+    } catch { return fallar('No se pudo pagar', 'El cobro ya no está disponible o no hay conexión. No se descontó nada.'); }
+    $('#saldo').textContent = dinero(SALDO - cobro.monto);
+    $('#monto-ok').textContent = dinero(cobro.monto); $('#comercio-ok').textContent = cobro.comercio;
+    $('#comp').textContent = comprobante; $('#fecha').textContent = new Date().toLocaleString('es-EC');
+    pantalla('listo');
+  };
+  $('#cancelar').onclick = async () => {
+    try { await updateDoc(ref, { estado: 'cancelado' }); } catch {}
+    fallar('Pago cancelado', 'No se cobró nada. Puedes volver a la tienda.');
+  };
+</script>
+</body>
+</html>
